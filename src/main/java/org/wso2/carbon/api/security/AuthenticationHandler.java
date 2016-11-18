@@ -29,10 +29,17 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.ws.security.WSConstants;
 import org.apache.ws.security.WSSecurityException;
+import org.wso2.carbon.api.security.internal.APISecurityDataHolder;
 import org.wso2.carbon.api.security.utils.AuthConstants;
 import org.wso2.carbon.api.security.utils.CoreUtils;
+import org.wso2.carbon.certificate.mgt.core.scep.SCEPManager;
+import org.wso2.carbon.certificate.mgt.core.scep.TenantedDeviceWrapper;
+import org.wso2.carbon.device.mgt.common.DeviceIdentifier;
+import org.wso2.carbon.device.mgt.common.EnrolmentInfo;
 
 import javax.xml.namespace.QName;
+import java.io.ByteArrayInputStream;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,13 +53,7 @@ public class AuthenticationHandler implements Handler {
         log.info("Engaging API Security Handler");
         this.handlerDesc = EMPTY_HANDLER_METADATA;
         apiList.add("/services/echo");
-    }
-
-    public void cleanup() {
-    }
-
-    public void init(HandlerDescription handlerDescription) {
-        this.handlerDesc = handlerDescription;
+        apiList.add("/abc");
     }
 
     public InvocationResponse invoke(MessageContext messageContext) throws AxisFault {
@@ -73,6 +74,27 @@ public class AuthenticationHandler implements Handler {
                         dns.append(aCert.getSubjectDN().getName()).append(", ");
                     }
                     CoreUtils.debugLog(log, "Following SSL Certificates were found: ", dns.toString());
+
+//                    X509Certificate cert = convert(certs[0]);
+//                    String challengeToken = APISecurityDataHolder.getInstance().
+//                            getCertificateManagementService().extractChallengeToken(cert);
+//
+//                    if (challengeToken != null) {
+//                        challengeToken = challengeToken.substring(challengeToken.indexOf("(") + 1).trim();
+//                        SCEPManager scepManager = APISecurityDataHolder.getInstance().getScepManager();
+//                        DeviceIdentifier deviceIdentifier = new DeviceIdentifier();
+//                        deviceIdentifier.setId(challengeToken);
+//                        deviceIdentifier.setType(AuthConstants.MOBILE_DEVICE_TYPE_IOS);
+//                        TenantedDeviceWrapper tenantedDeviceWrapper = scepManager.getValidatedDevice(deviceIdentifier);
+//
+//                        if (tenantedDeviceWrapper.getDevice() != null &&
+//                                tenantedDeviceWrapper.getDevice().getEnrolmentInfo() != null) {
+//
+//                            EnrolmentInfo enrolmentInfo = tenantedDeviceWrapper.getDevice().getEnrolmentInfo();
+//                            log.info("Device owner: " + enrolmentInfo.getOwner());
+//                        }
+//                    }
+
                     return InvocationResponse.CONTINUE;
 
                 } catch (Exception e) {
@@ -81,6 +103,7 @@ public class AuthenticationHandler implements Handler {
                     return InvocationResponse.SUSPEND;
                 }
             } else {
+                log.warn("Unauthorized request for api: " + ctxPath);
                 setFaultCodeAndThrowAxisFault(messageContext, new Exception("SSL required"));
                 return InvocationResponse.SUSPEND;
             }
@@ -90,6 +113,11 @@ public class AuthenticationHandler implements Handler {
 
     }
 
+    /**
+     * API filter
+     * @param contextPath
+     * @return boolean
+     */
     private boolean isSecuredAPI(String contextPath) {
         for (String path: apiList) {
             if (contextPath.contains(path)) {
@@ -99,19 +127,23 @@ public class AuthenticationHandler implements Handler {
         return false;
     }
 
-    public void flowComplete(org.apache.axis2.context.MessageContext messageContext) {
-    }
-
-    public HandlerDescription getHandlerDesc() {
-        return this.handlerDesc;
-    }
-
-    public String getName() {
-        return "API security inflow handler";
-    }
-
-    public Parameter getParameter(String name) {
-        return this.handlerDesc.getParameter(name);
+    /**
+     * Convert javax.security to java.security
+     * @param certificate
+     * @return java.security.cert.X509Certificate
+     */
+    public static java.security.cert.X509Certificate convert(javax.security.cert.X509Certificate certificate) {
+        try {
+            byte[] encoded = certificate.getEncoded();
+            ByteArrayInputStream bis = new ByteArrayInputStream(encoded);
+            java.security.cert.CertificateFactory cf
+                    = java.security.cert.CertificateFactory.getInstance("X.509");
+            return (java.security.cert.X509Certificate)cf.generateCertificate(bis);
+        } catch (java.security.cert.CertificateEncodingException e) {
+        } catch (javax.security.cert.CertificateEncodingException e) {
+        } catch (java.security.cert.CertificateException e) {
+        }
+        return null;
     }
 
     private void setFaultCodeAndThrowAxisFault(MessageContext msgContext, Exception e) throws AxisFault {
@@ -147,5 +179,27 @@ public class AuthenticationHandler implements Handler {
 
         }
 
+    }
+
+    public void cleanup() {
+    }
+
+    public void init(HandlerDescription handlerDescription) {
+        this.handlerDesc = handlerDescription;
+    }
+
+    public void flowComplete(org.apache.axis2.context.MessageContext messageContext) {
+    }
+
+    public HandlerDescription getHandlerDesc() {
+        return this.handlerDesc;
+    }
+
+    public String getName() {
+        return "API security inflow handler";
+    }
+
+    public Parameter getParameter(String name) {
+        return this.handlerDesc.getParameter(name);
     }
 }

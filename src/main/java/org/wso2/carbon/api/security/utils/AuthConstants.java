@@ -21,4 +21,5 @@ public class AuthConstants {
     public static final String SEC_FAULT = "SECURITY_VALIDATION_FAILURE";
     public static final String WSSE = "wsse";
     public static final String SSL_CERT_X509 = "ssl.client.auth.cert.X509";
+    public static final String MOBILE_DEVICE_TYPE_IOS = "ios";
 }
