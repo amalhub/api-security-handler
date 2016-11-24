@@ -29,17 +29,15 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.ws.security.WSConstants;
 import org.apache.ws.security.WSSecurityException;
-import org.wso2.carbon.api.security.internal.APISecurityDataHolder;
+import org.wso2.carbon.api.security.invoker.RESTInvoker;
+import org.wso2.carbon.api.security.invoker.RESTResponse;
 import org.wso2.carbon.api.security.utils.AuthConstants;
 import org.wso2.carbon.api.security.utils.CoreUtils;
-import org.wso2.carbon.certificate.mgt.core.scep.SCEPManager;
-import org.wso2.carbon.certificate.mgt.core.scep.TenantedDeviceWrapper;
-import org.wso2.carbon.device.mgt.common.DeviceIdentifier;
-import org.wso2.carbon.device.mgt.common.EnrolmentInfo;
 
+import javax.security.cert.X509Certificate;
 import javax.xml.namespace.QName;
 import java.io.ByteArrayInputStream;
-import java.security.cert.X509Certificate;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,15 +45,26 @@ public class AuthenticationHandler implements Handler {
     private static final Log log = LogFactory.getLog(AuthenticationHandler.class);
     private static HandlerDescription EMPTY_HANDLER_METADATA = new HandlerDescription("API Security Handler");
     private HandlerDescription handlerDesc;
-    private ArrayList<String> apiList = new ArrayList<String>();
+    private ArrayList<String> apiList;
+    private RESTInvoker restInvoker;
 
+    /**
+     * Setting up configurations at the constructor
+     */
     public AuthenticationHandler() {
         log.info("Engaging API Security Handler");
+        apiList = CoreUtils.readApiFilterList();
+        restInvoker = new RESTInvoker();
         this.handlerDesc = EMPTY_HANDLER_METADATA;
-        apiList.add("/services/echo");
-        apiList.add("/abc");
     }
 
+    /**
+     * Handles incoming http requests
+     *
+     * @param messageContext
+     * @return response
+     * @throws AxisFault
+     */
     public InvocationResponse invoke(MessageContext messageContext) throws AxisFault {
         CoreUtils.debugLog(log, "Authentication handler invoked.");
         String ctxPath = messageContext.getTo().getAddress().trim();
@@ -68,33 +77,15 @@ public class AuthenticationHandler implements Handler {
             if (sslCertObject != null) {
                 StringBuilder dns = new StringBuilder();
                 try {
-                    javax.security.cert.X509Certificate[] certs = (javax.security.cert.X509Certificate[]) sslCertObject;
+                    X509Certificate[] certs = (X509Certificate[]) sslCertObject;
 
-                    for (javax.security.cert.X509Certificate aCert : certs) {
+                    for (X509Certificate aCert : certs) {
                         dns.append(aCert.getSubjectDN().getName()).append(", ");
                     }
                     CoreUtils.debugLog(log, "Following SSL Certificates were found: ", dns.toString());
-
-//                    X509Certificate cert = convert(certs[0]);
-//                    String challengeToken = APISecurityDataHolder.getInstance().
-//                            getCertificateManagementService().extractChallengeToken(cert);
-//
-//                    if (challengeToken != null) {
-//                        challengeToken = challengeToken.substring(challengeToken.indexOf("(") + 1).trim();
-//                        SCEPManager scepManager = APISecurityDataHolder.getInstance().getScepManager();
-//                        DeviceIdentifier deviceIdentifier = new DeviceIdentifier();
-//                        deviceIdentifier.setId(challengeToken);
-//                        deviceIdentifier.setType(AuthConstants.MOBILE_DEVICE_TYPE_IOS);
-//                        TenantedDeviceWrapper tenantedDeviceWrapper = scepManager.getValidatedDevice(deviceIdentifier);
-//
-//                        if (tenantedDeviceWrapper.getDevice() != null &&
-//                                tenantedDeviceWrapper.getDevice().getEnrolmentInfo() != null) {
-//
-//                            EnrolmentInfo enrolmentInfo = tenantedDeviceWrapper.getDevice().getEnrolmentInfo();
-//                            log.info("Device owner: " + enrolmentInfo.getOwner());
-//                        }
-//                    }
-
+                    RESTResponse response = restInvoker.invokePOST(new URI("http://requestb.in/teli2gte"), null, null,
+                            null, "test");
+                    CoreUtils.debugLog(log, response.getContent());
                     return InvocationResponse.CONTINUE;
 
                 } catch (Exception e) {

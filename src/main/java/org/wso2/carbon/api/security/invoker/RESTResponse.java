@@ -22,7 +22,7 @@ import org.apache.http.Header;
 /**
  * RESTResponse class holds the data retrieved from the HTTP invoke response.
  */
-class RESTResponse {
+public class RESTResponse {
     private String contentType;
     private String content;
     private Header[] headers;

@@ -23,8 +23,4 @@ public class RESTConstants {
     static String REST_CLIENT_MAX_CONNECTIONS_PER_ROUTE = "maxConnectionsPerRoute";
     static String REST_CLEINT_CONNECTION_TIMEOUT = "connectionTimeout";
     static String REST_CLEINT_SOCKET_TIMEOUT = "socketTimeout";
-    static int MAX_TOTAL_CONNECTIONS = 100;
-    static int MAX_TOTAL_CONNECTIONS_PER_ROUTE = 100;
-    static int CONNECTION_TIMEOUT = 120000;
-    static int SOCKET_TIMEOUT = 120000;
 }

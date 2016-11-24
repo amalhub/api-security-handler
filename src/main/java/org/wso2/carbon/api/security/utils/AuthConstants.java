@@ -21,5 +21,7 @@ public class AuthConstants {
     public static final String SEC_FAULT = "SECURITY_VALIDATION_FAILURE";
     public static final String WSSE = "wsse";
     public static final String SSL_CERT_X509 = "ssl.client.auth.cert.X509";
-    public static final String MOBILE_DEVICE_TYPE_IOS = "ios";
+    public static final String AUTH_CONFIGURATION_FILE_NAME = "api-filter-config.xml";
+    public static final String API_FILTER_CONFIG_ELEMENT = "apiFilters";
+    public static final String API_LIST_PROPERTY = "apiList";
 }

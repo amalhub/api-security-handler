@@ -36,6 +36,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.wso2.carbon.api.security.utils.AuthConstants;
+import org.wso2.carbon.api.security.utils.CoreUtils;
 import org.wso2.carbon.utils.CarbonUtils;
 
 import javax.xml.namespace.QName;
@@ -50,10 +51,10 @@ public class RESTInvoker {
 
     private static final Log log = LogFactory.getLog(RESTInvoker.class);
 
-    private int maxTotalConnections;
-    private int maxTotalConnectionsPerRoute;
-    private int connectionTimeout;
-    private int socketTimeout;
+    private int maxTotalConnections = 100;
+    private int maxTotalConnectionsPerRoute = 100;
+    private int connectionTimeout = 120000;
+    private int socketTimeout = 120000;
 
     private CloseableHttpClient client = null;
     private PoolingHttpClientConnectionManager connectionManager = null;
@@ -64,9 +65,9 @@ public class RESTInvoker {
 
     private void parseConfiguration() {
         String carbonConfigDirPath = CarbonUtils.getCarbonConfigDirPath();
-        String activitiConfigPath = carbonConfigDirPath + File.separator +
+        String apiFilterConfigPath = carbonConfigDirPath + File.separator +
                 AuthConstants.AUTH_CONFIGURATION_FILE_NAME;
-        File configFile = new File(activitiConfigPath);
+        File configFile = new File(apiFilterConfigPath);
 
         try {
             String configContent = FileUtils.readFileToString(configFile);
@@ -89,17 +90,13 @@ public class RESTInvoker {
                             if (value != null && !value.trim().equals("")) {
                                 maxTotalConnections = Integer.parseInt(value);
                             }
-                            if (log.isDebugEnabled()) {
-                                log.debug("Max total http connections " + maxTotalConnections);
-                            }
+                            CoreUtils.debugLog(log, "Max total http connections ", maxTotalConnections);
                         } else if (RESTConstants.REST_CLIENT_MAX_CONNECTIONS_PER_ROUTE.equals(beanName)) {
                             String value = beanProp.getAttributeValue(new QName(null, "value"));
                             if (value != null && !value.trim().equals("")) {
                                 maxTotalConnectionsPerRoute = Integer.parseInt(value);
                             }
-                            if (log.isDebugEnabled()) {
-                                log.debug("Max total client connections per route " + maxTotalConnectionsPerRoute);
-                            }
+                            CoreUtils.debugLog(log, "Max total client connections per route ", maxTotalConnectionsPerRoute);
                         } else if (RESTConstants.REST_CLEINT_CONNECTION_TIMEOUT.equals(beanName)) {
                             String value = beanProp.getAttributeValue(new QName(null, "value"));
                             if (value != null && !value.trim().equals("")) {
@@ -114,11 +111,11 @@ public class RESTInvoker {
                     }
                 }
             }
-        } catch (IOException | XMLStreamException e) {
+        } catch (XMLStreamException e) {
+            log.error("Error in processing http connection settings, using default settings", e);
+        } catch (IOException e) {
             log.error("Error in processing http connection settings, using default settings", e);
         }
-
-
     }
 
     private void configureHttpClient() {
@@ -139,12 +136,10 @@ public class RESTInvoker {
                 .setDefaultRequestConfig(defaultRequestConfig)
                 .build();
 
-        if (log.isDebugEnabled()) {
-            log.debug("REST client initialized with" +
-                    "maxTotalConnection = " + maxTotalConnections +
-                    "maxConnectionsPerRoute = " + maxTotalConnectionsPerRoute +
-                    "connectionTimeout = " + connectionTimeout);
-        }
+        CoreUtils.debugLog(log, "REST client initialized with",
+                "maxTotalConnection = ", maxTotalConnections,
+                "maxConnectionsPerRoute = ", maxTotalConnectionsPerRoute,
+                "connectionTimeout = ", connectionTimeout);
     }
 
     public void closeHttpClient() {
@@ -164,8 +159,10 @@ public class RESTInvoker {
         try {
             httpPost = new HttpPost(uri);
             httpPost.setEntity(new StringEntity(payload));
-            for (BasicNameValuePair header: jsonHeaders) {
-                httpPost.setHeader(header.getName(), header.getValue());
+            if (jsonHeaders != null && jsonHeaders.length > 0) {
+                for (BasicNameValuePair header : jsonHeaders) {
+                    httpPost.setHeader(header.getName(), header.getValue());
+                }
             }
             response = sendReceiveRequest(httpPost, username, password);
             output = IOUtils.toString(response.getEntity().getContent());
