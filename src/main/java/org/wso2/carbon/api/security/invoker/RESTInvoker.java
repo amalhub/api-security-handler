@@ -26,9 +26,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.Header;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.http.client.methods.*;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -136,7 +134,7 @@ public class RESTInvoker {
                 .setDefaultRequestConfig(defaultRequestConfig)
                 .build();
 
-        CoreUtils.debugLog(log, "REST client initialized with",
+        CoreUtils.debugLog(log, "REST client initialized with ",
                 "maxTotalConnection = ", maxTotalConnections,
                 "maxConnectionsPerRoute = ", maxTotalConnectionsPerRoute,
                 "connectionTimeout = ", connectionTimeout);
@@ -147,7 +145,53 @@ public class RESTInvoker {
         IOUtils.closeQuietly(connectionManager);
     }
 
-    public RESTResponse invokePOST(URI uri, BasicNameValuePair[] jsonHeaders, String username,
+    /**
+     * Invokes the http GET method
+     *
+     * @param uri        endpoint/service url
+     * @param requestHeaders header list
+     * @param username   username for authentication
+     * @param password   password for authentication
+     * @return RESTResponse of the GET request (can be the response body or the response status code)
+     * @throws Exception
+     */
+    public RESTResponse invokeGET(URI uri, BasicNameValuePair[] requestHeaders, String username, String password) throws IOException {
+
+        HttpGet httpGet = null;
+        CloseableHttpResponse response = null;
+        Header[] headers;
+        int httpStatus;
+        String contentType;
+        String output;
+        try {
+            httpGet = new HttpGet(uri);
+            if (requestHeaders != null && requestHeaders.length > 0) {
+                for (BasicNameValuePair header : requestHeaders) {
+                    httpGet.setHeader(header.getName(), header.getValue());
+                }
+            }
+            response = sendReceiveRequest(httpGet, username, password);
+            output = IOUtils.toString(response.getEntity().getContent());
+            headers = response.getAllHeaders();
+            httpStatus = response.getStatusLine().getStatusCode();
+            contentType = response.getEntity().getContentType().getValue();
+            if (log.isTraceEnabled()) {
+                log.trace("Invoked GET " + uri.toString() + " - Response message: " + output);
+            }
+            EntityUtils.consume(response.getEntity());
+        } finally {
+            if (response != null) {
+                IOUtils.closeQuietly(response);
+            }
+            if (httpGet != null) {
+                httpGet.releaseConnection();
+            }
+        }
+        return new RESTResponse(contentType, output, headers, httpStatus);
+    }
+
+
+    public RESTResponse invokePOST(URI uri, BasicNameValuePair[] requestHeaders, String username,
                                    String password, String payload) throws IOException {
 
         HttpPost httpPost = null;
@@ -159,8 +203,8 @@ public class RESTInvoker {
         try {
             httpPost = new HttpPost(uri);
             httpPost.setEntity(new StringEntity(payload));
-            if (jsonHeaders != null && jsonHeaders.length > 0) {
-                for (BasicNameValuePair header : jsonHeaders) {
+            if (requestHeaders != null && requestHeaders.length > 0) {
+                for (BasicNameValuePair header : requestHeaders) {
                     httpPost.setHeader(header.getName(), header.getValue());
                 }
             }
@@ -180,6 +224,99 @@ public class RESTInvoker {
             }
             if (httpPost != null) {
                 httpPost.releaseConnection();
+            }
+        }
+        return new RESTResponse(contentType, output, headers, httpStatus);
+    }
+
+    /**
+     * Invokes the http PUT method
+     *
+     * @param uri        endpoint/service url
+     * @param requestHeaders header list
+     * @param username   username for authentication
+     * @param password   password for authentication
+     * @param payload    payload body passed
+     * @return RESTResponse of the PUT request (can be the response body or the response status code)
+     * @throws Exception
+     */
+    public RESTResponse invokePUT(URI uri, BasicNameValuePair[] requestHeaders, String username, String password,
+                                  String payload) throws IOException {
+
+        HttpPut httpPut = null;
+        CloseableHttpResponse response = null;
+        Header[] headers;
+        int httpStatus;
+        String contentType;
+        String output;
+        try {
+            httpPut = new HttpPut(uri);
+            httpPut.setEntity(new StringEntity(payload));
+            if (requestHeaders != null && requestHeaders.length > 0) {
+                for (BasicNameValuePair header : requestHeaders) {
+                    httpPut.setHeader(header.getName(), header.getValue());
+                }
+            }
+            response = sendReceiveRequest(httpPut, username, password);
+            output = IOUtils.toString(response.getEntity().getContent());
+            headers = response.getAllHeaders();
+            httpStatus = response.getStatusLine().getStatusCode();
+            contentType = response.getEntity().getContentType().getValue();
+            if (log.isTraceEnabled()) {
+                log.trace("Invoked PUT " + uri.toString() + " - Response message: " + output);
+            }
+            EntityUtils.consume(response.getEntity());
+        } finally {
+            if (response != null) {
+                IOUtils.closeQuietly(response);
+            }
+            if (httpPut != null) {
+                httpPut.releaseConnection();
+            }
+        }
+        return new RESTResponse(contentType, output, headers, httpStatus);
+    }
+
+    /**
+     * Invokes the http DELETE method
+     *
+     * @param uri        endpoint/service url
+     * @param requestHeaders header list
+     * @param username   username for authentication
+     * @param password   password for authentication
+     * @return RESTResponse of the DELETE (can be the response status code or the response body)
+     * @throws Exception
+     */
+    public RESTResponse invokeDELETE(URI uri, BasicNameValuePair[] requestHeaders, String username, String password) throws IOException {
+
+        HttpDelete httpDelete = null;
+        CloseableHttpResponse response = null;
+        Header[] headers;
+        int httpStatus;
+        String contentType;
+        String output;
+        try {
+            httpDelete = new HttpDelete(uri);
+            if (requestHeaders != null && requestHeaders.length > 0) {
+                for (BasicNameValuePair header : requestHeaders) {
+                    httpDelete.setHeader(header.getName(), header.getValue());
+                }
+            }
+            response = sendReceiveRequest(httpDelete, username, password);
+            output = IOUtils.toString(response.getEntity().getContent());
+            headers = response.getAllHeaders();
+            httpStatus = response.getStatusLine().getStatusCode();
+            contentType = response.getEntity().getContentType().getValue();
+            if (log.isTraceEnabled()) {
+                log.trace("Invoked DELETE " + uri.toString() + " - Response message: " + output);
+            }
+            EntityUtils.consume(response.getEntity());
+        } finally {
+            if (response != null) {
+                IOUtils.closeQuietly(response);
+            }
+            if (httpDelete != null) {
+                httpDelete.releaseConnection();
             }
         }
         return new RESTResponse(contentType, output, headers, httpStatus);

@@ -27,8 +27,11 @@ import org.apache.axis2.engine.Handler;
 import org.apache.axis2.namespace.Constants;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.ws.security.WSConstants;
 import org.apache.ws.security.WSSecurityException;
+import org.apache.ws.security.util.Base64;
+import org.json.JSONObject;
 import org.wso2.carbon.api.security.invoker.RESTInvoker;
 import org.wso2.carbon.api.security.invoker.RESTResponse;
 import org.wso2.carbon.api.security.utils.AuthConstants;
@@ -59,7 +62,7 @@ public class AuthenticationHandler implements Handler {
     }
 
     /**
-     * Handles incoming http requests
+     * Handles incoming http/s requests
      *
      * @param messageContext
      * @return response
@@ -70,7 +73,7 @@ public class AuthenticationHandler implements Handler {
         String ctxPath = messageContext.getTo().getAddress().trim();
         CoreUtils.debugLog(log, "Authentication handler invoked by: ", ctxPath);
 
-        if (isSecuredAPI(ctxPath)) {
+        if (isSecuredAPI(messageContext)) {
 
             Object sslCertObject = messageContext.getProperty(AuthConstants.SSL_CERT_X509);
 
@@ -83,10 +86,62 @@ public class AuthenticationHandler implements Handler {
                         dns.append(aCert.getSubjectDN().getName()).append(", ");
                     }
                     CoreUtils.debugLog(log, "Following SSL Certificates were found: ", dns.toString());
-                    RESTResponse response = restInvoker.invokePOST(new URI("http://requestb.in/teli2gte"), null, null,
-                            null, "test");
-                    CoreUtils.debugLog(log, response.getContent());
-                    return InvocationResponse.CONTINUE;
+                    StringBuilder cert = new StringBuilder();
+                    cert.append(Base64.encode(certs[0].getEncoded()));
+
+                    CoreUtils.debugLog(log, "Verify Cert:\n", cert.toString());
+
+                    URI dcrUrl = new URI(AuthConstants.HTTPS + "://" + CoreUtils.getHost() + ":" + CoreUtils
+                            .getHttpsPort() + "/dynamic-client-web/register");
+                    String dcrContent = "{\n" +
+                            "\"owner\":\"" + CoreUtils.getUsername() + "\",\n" +
+                            "\"clientName\":\"emm\",\n" +
+                            "\"grantType\":\"refresh_token password client_credentials\",\n" +
+                            "\"tokenScope\":\"default\"\n" +
+                            "}";
+                    BasicNameValuePair drcHeaders[] = {new BasicNameValuePair("Content-Type", "application/json")};
+
+                    RESTResponse response = restInvoker.invokePOST(dcrUrl, drcHeaders, null,
+                            null, dcrContent);
+                    CoreUtils.debugLog(log, "DCR response:", response.getContent());
+                    JSONObject jsonResponse = new JSONObject(response.getContent());
+                    String clientId = jsonResponse.getString("client_id");
+                    String clientSecret = jsonResponse.getString("client_secret");
+
+                    URI tokenUrl = new URI(AuthConstants.HTTPS + "://" + CoreUtils.getHost() + ":" + CoreUtils
+                            .getHttpsPort() + "/oauth2/token");
+                    String tokenContent = "grant_type=password&username=" + CoreUtils.getUsername() + "&password=" +
+                            CoreUtils.getPassword() + "&scope=activity-view";
+                    String tokenBasicAuth = "Basic " + Base64.encode((clientId + ":" + clientSecret).getBytes());
+                    BasicNameValuePair tokenHeaders[] = {new BasicNameValuePair("Authorization", tokenBasicAuth), new
+                            BasicNameValuePair("Content-Type", "application/x-www-form-urlencoded")};
+
+                    response = restInvoker.invokePOST(tokenUrl, tokenHeaders, null,
+                            null, tokenContent);
+                    CoreUtils.debugLog(log, "Token response:", response.getContent());
+                    jsonResponse = new JSONObject(response.getContent());
+                    String accessToken = jsonResponse.getString("access_token");
+
+                    URI certVerifyUrl = new URI(AuthConstants.HTTPS + "://" + CoreUtils.getHost() + ":" + CoreUtils
+                            .getHttpsPort() + "/api/certificate-mgt/v1.0/admin/certificates" + "/verify");
+                    BasicNameValuePair certVerifyHeaders[] = {new BasicNameValuePair("Authorization", "Bearer " +
+                            accessToken), new BasicNameValuePair("Content-Type", "application/json")};
+                    String certVerifyContent = "{\n" +
+                            "\"pem\":\"" + cert.toString() + "\",\n" +
+                            "\"tenantId\": \"-1234\",\n" +
+                            "\"serial\":\"\"\n" +
+                            "}";
+
+                    response = restInvoker.invokePOST(certVerifyUrl, certVerifyHeaders, null,
+                            null, certVerifyContent);
+                    CoreUtils.debugLog(log, "Verify response:", response.getContent());
+
+                    if (!response.getContent().contains("invalid")) {
+                        return InvocationResponse.CONTINUE;
+                    }
+                    log.warn("Unauthorized request for api: " + ctxPath);
+                    setFaultCodeAndThrowAxisFault(messageContext, new Exception("Unauthorized!"));
+                    return InvocationResponse.SUSPEND;
 
                 } catch (Exception e) {
                     log.error("Error while processing certificate DNS. :  " + dns.toString(), e);
@@ -106,16 +161,19 @@ public class AuthenticationHandler implements Handler {
 
     /**
      * API filter
-     * @param contextPath
+     * @param messageContext
      * @return boolean
      */
-    private boolean isSecuredAPI(String contextPath) {
-        for (String path: apiList) {
-            if (contextPath.contains(path)) {
-                return true;
+    private boolean isSecuredAPI(MessageContext messageContext) {
+        if (messageContext.getTransportIn().getName().toLowerCase().equals(AuthConstants.HTTPS)) {
+            for (String path: apiList) {
+                if (messageContext.getTo().getAddress().trim().contains(path)) {
+                    return true;
+                }
             }
+            return false;
         }
-        return false;
+        return true;
     }
 
     /**

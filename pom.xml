@@ -34,6 +34,11 @@
             <artifactId>org.wso2.carbon.certificate.mgt.core</artifactId>
             <version>1.2.6-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>org.json.wso2</groupId>
+            <artifactId>json</artifactId>
+            <version>3.0.0.wso2v1</version>
+        </dependency>
     </dependencies>
 
     <repositories>

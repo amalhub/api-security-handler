@@ -33,6 +33,10 @@ import java.util.Iterator;
 
 public class CoreUtils {
     private static final Log log = LogFactory.getLog(CoreUtils.class);
+    private static String host = "localhost";
+    private static int httpsPort = 9443;
+    private static String username = "admin";
+    private static String password = "admin";
 
     /**
      * Reading configurations from api-filter-config.xml file
@@ -70,6 +74,20 @@ public class CoreUtils {
                                 apiList.add(apiContext);
                                 CoreUtils.debugLog(log, "Adding security to api: ", apiContext);
                             }
+                        } else if (AuthConstants.HOST.equals(beanName)) {
+                            String value = beanProp.getAttributeValue(new QName(null, "value"));
+                            host = value;
+                        } else if (AuthConstants.HTTPS_PORT.equals(beanName)) {
+                            String value = beanProp.getAttributeValue(new QName(null, "value"));
+                            if (value != null && !value.trim().equals("")) {
+                                httpsPort = Integer.parseInt(value);
+                            }
+                        } else if (AuthConstants.USERNAME.equals(beanName)) {
+                            String value = beanProp.getAttributeValue(new QName(null, "value"));
+                            username = value;
+                        } else if (AuthConstants.PASSWORD.equals(beanName)) {
+                            String value = beanProp.getAttributeValue(new QName(null, "value"));
+                            password = value;
                         }
                     }
                 }
@@ -102,5 +120,21 @@ public class CoreUtils {
             }
             logger.debug(stringBuilder.toString());
         }
+    }
+
+    public static String getHost() {
+        return host;
+    }
+
+    public static int getHttpsPort() {
+        return httpsPort;
+    }
+
+    public static String getUsername() {
+        return username;
+    }
+
+    public static String getPassword() {
+        return password;
     }
 }
